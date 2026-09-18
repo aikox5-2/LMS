@@ -14,6 +14,17 @@ export const useCoursesList = (params) => {
   });
 };
 
+export const useMyCourses = () => {
+  return useQuery({
+    queryKey: ["my-courses"],
+    queryFn: async () => {
+      const response = await courseService.getMyCourses();
+      if (!response.success) throw new Error("Gagal mengambil daftar mata pelajaran Anda");
+      return response.data;
+    },
+  });
+};
+
 // 2. Hook untuk fetch single course detail
 export const useCourseDetail = (id, enabled = true) => {
   return useQuery({

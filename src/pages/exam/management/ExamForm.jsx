@@ -33,6 +33,60 @@ const toDatetimeLocal = (dateStr) => {
   }
 };
 
+const extractErrorMessage = (error) => {
+  if (!error) return "Terjadi kesalahan";
+  const data = error.response?.data;
+  if (!data) return error.message || "Gagal menghubungi server";
+
+  if (typeof data === "string") return data;
+
+  if (Array.isArray(data.message)) {
+    return data.message.join(", ");
+  }
+
+  if (typeof data.message === "string" && data.message) {
+    if (data.errors) {
+      if (Array.isArray(data.errors)) {
+        const errMsgs = data.errors
+          .map((e) =>
+            typeof e === "object"
+              ? e.message || e.msg || (e.path ? `${e.path.join(".")}: ${e.message}` : null) || JSON.stringify(e)
+              : e
+          )
+          .join(", ");
+        return `${data.message}: ${errMsgs}`;
+      } else if (typeof data.errors === "object") {
+        const errMsgs = Object.entries(data.errors)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join(", ");
+        return `${data.message}: ${errMsgs}`;
+      }
+    }
+    return data.message;
+  }
+
+  if (Array.isArray(data.error)) return data.error.join(", ");
+  if (typeof data.error === "string") return data.error;
+
+  if (Array.isArray(data.errors)) {
+    return data.errors
+      .map((e) =>
+        typeof e === "object"
+          ? e.message || e.msg || JSON.stringify(e)
+          : e
+      )
+      .join(", ");
+  }
+
+  if (typeof data.errors === "object") {
+    return Object.entries(data.errors)
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+      .join(", ");
+  }
+
+  return error.message || "Gagal menyimpan ujian";
+};
+
 const ExamForm = ({ mode = "create" }) => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -92,25 +146,45 @@ const ExamForm = ({ mode = "create" }) => {
       return;
     }
 
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+
+    if (isNaN(start.getTime())) {
+      toast.error("Waktu mulai tidak valid");
+      return;
+    }
+    if (isNaN(end.getTime())) {
+      toast.error("Waktu selesai tidak valid");
+      return;
+    }
+    if (end <= start) {
+      toast.error("Waktu selesai harus lebih lambat dari waktu mulai");
+      return;
+    }
+
     const payload = {
-      title,
+      title: title.trim(),
       course_id: Number(courseId),
-      description,
+      description: description.trim(),
       duration: Number(duration),
-      start_time: new Date(startTime).toISOString(),
-      end_time: new Date(endTime).toISOString(),
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
     };
 
     try {
       if (isEdit) {
         await updateExamMutation.mutateAsync({ id, data: payload });
+        toast.success("Ujian berhasil diperbarui");
       } else {
         await createExamMutation.mutateAsync(payload);
+        toast.success("Ujian berhasil dibuat");
       }
       navigate("/exams");
     } catch (error) {
-      console.error("Error saving exam:", error);
-      toast.error("Gagal menyimpan ujian. Pastikan data benar atau coba lagi.");
+      console.error("Error saving exam response data:", error.response?.data);
+      console.error("Error saving exam details:", error);
+      const apiMessage = extractErrorMessage(error);
+      toast.error(apiMessage);
     }
   };
 

@@ -2,8 +2,16 @@ import api from "../config/api";
 
 export const courseService = {
   getAll: async (params) => {
-    const response = await api.get("/courses", { params });
-    return response.data;
+    try {
+      const response = await api.get("/courses", { params });
+      return response.data;
+    } catch (error) {
+      if (error.response && error.response.status === 403) {
+        const response = await api.get("/courses/my-courses");
+        return response.data;
+      }
+      throw error;
+    }
   },
   getMyCourses: async () => {
     const response = await api.get("/courses/my-courses");
